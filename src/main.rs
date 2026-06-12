@@ -32,6 +32,9 @@ use std::{
 };
 
 const BIND_ADDR: &str = "127.0.0.1:8191";
+/// Minimum spacing between successful name changes (register or release)
+/// per pubkey — spam brake. In-memory: restarts reset it, which is fine.
+const NAME_CHANGE_COOLDOWN: Duration = Duration::from_secs(600);
 const BASE_URL: &str = "https://goblin.st";
 const DOMAIN: &str = "goblin.st";
 const RELAYS: &[&str] = &["wss://nrelay.us-ea.st"];
@@ -244,6 +247,26 @@ impl App {
         }
         seen.insert(event_id.to_string(), now);
         true
+    }
+
+    /// True when an operation in this bucket happened within the window.
+    /// Check-only — pair with [`Self::record_op`] on success, so failed
+    /// attempts (taken name, bad auth) never burn the caller's cooldown.
+    fn cooldown_active(&self, bucket: &str, key: &str, window: Duration) -> bool {
+        let k = format!("{bucket}:{key}");
+        let now = Instant::now();
+        let mut map = self.rate.lock();
+        if let Some(hits) = map.get_mut(&k) {
+            hits.retain(|t| now.duration_since(*t) < window);
+            return !hits.is_empty();
+        }
+        false
+    }
+
+    /// Record a completed operation for cooldown tracking.
+    fn record_op(&self, bucket: &str, key: &str) {
+        let k = format!("{bucket}:{key}");
+        self.rate.lock().entry(k).or_default().push(Instant::now());
     }
 
     /// Sliding-window in-memory rate limiter. Returns true when the call is allowed.
@@ -530,6 +553,17 @@ async fn register(
             .into_response();
     }
 
+    // One name change (register or release) per pubkey per 10 minutes:
+    // checked after auth so strangers can't burn someone's budget, recorded
+    // only on success so failed attempts don't lock the user out.
+    if app.cooldown_active("namechange", &auth_pubkey, NAME_CHANGE_COOLDOWN) {
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(json!({"error": "name_change_cooldown"})),
+        )
+            .into_response();
+    }
+
     let req: RegisterBody = match serde_json::from_slice(&body) {
         Ok(r) => r,
         Err(_) => {
@@ -609,6 +643,7 @@ async fn register(
         Ok(0) => (StatusCode::CONFLICT, Json(json!({"error": "name taken"}))).into_response(),
         Ok(_) => {
             tracing::info!("registered {name} -> {pubkey}");
+            app.record_op("namechange", &pubkey);
             (
                 StatusCode::CREATED,
                 Json(json!({"name": name, "nip05": format!("{name}@{DOMAIN}")})),
@@ -808,6 +843,13 @@ async fn unregister(
         )
             .into_response();
     }
+    if app.cooldown_active("namechange", &auth_pubkey, NAME_CHANGE_COOLDOWN) {
+        return (
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(json!({"error": "name_change_cooldown"})),
+        )
+            .into_response();
+    }
     match app.lookup(&name) {
         Some(owner) if owner == auth_pubkey => {
             let res = app.db.lock().execute(
@@ -816,6 +858,7 @@ async fn unregister(
             );
             match res {
                 Ok(_) => {
+                    app.record_op("namechange", &auth_pubkey);
                     app.purge_avatar(&name);
                     tracing::info!("released {name}");
                     (
