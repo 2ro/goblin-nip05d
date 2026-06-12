@@ -1,0 +1,25 @@
+[package]
+name = "goblin-nip05d"
+version = "0.1.0"
+edition = "2021"
+description = "NIP-05 identity service for the Goblin wallet (goblin.st)"
+license = "Apache-2.0"
+
+[dependencies]
+axum = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+nostr = { version = "0.44", default-features = false, features = ["std"] }
+base64 = "0.22"
+sha2 = "0.10"
+hex = "0.4"
+parking_lot = "0.12"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
+
+[profile.release]
+opt-level = 2
+strip = true
