@@ -9,11 +9,13 @@ NIP-05 identity service for the Goblin wallet, serving `goblin.st`.
 | GET | `/.well-known/nostr.json?name=<name>` | — | NIP-05 resolution (CORS `*`) |
 | GET | `/api/v1/name/{name}` | — | availability: `{name, available, reason?}` |
 | POST | `/api/v1/register` `{name, pubkey}` | NIP-98 | register a name (one per pubkey) |
-| DELETE | `/api/v1/register/{name}` | NIP-98 (owner) | release a name (30-day quarantine) |
+| DELETE | `/api/v1/register/{name}` | NIP-98 (owner) | release a name |
 | GET | `/api/v1/health` | — | liveness |
 
 Rules: names `^[a-z0-9._-]{3,30}$` starting/ending alphanumeric, lowercase, reserved list
-enforced, one active name per pubkey, released names quarantined 30 days. NIP-98 auth events
+enforced, one active name per pubkey. A released name is immediately available for anyone to
+register — releasing is permanent, not a hold, so don't release a name you want to keep. Name
+changes (register or release) are limited to one per pubkey per 10 minutes. NIP-98 auth events
 must be kind 27235, ≤60s old, with matching `u`/`method` tags and (for bodies) a `payload`
 sha256 tag. Per-IP rate limits on registration.
 
