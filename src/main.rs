@@ -32,8 +32,9 @@ use std::{
 };
 
 const BIND_ADDR: &str = "127.0.0.1:8191";
-/// Minimum spacing between successful name changes (register or release)
-/// per pubkey — spam brake. In-memory: restarts reset it, which is fine.
+/// After releasing a name, how long a pubkey must wait before registering a
+/// new one — an anti-churn brake armed by release (not by claiming, so a fresh
+/// claim never blocks an immediate release). In-memory: restarts reset it.
 const NAME_CHANGE_COOLDOWN: Duration = Duration::from_secs(600);
 const BASE_URL: &str = "https://goblin.st";
 const DOMAIN: &str = "goblin.st";
@@ -553,9 +554,10 @@ async fn register(
             .into_response();
     }
 
-    // One name change (register or release) per pubkey per 10 minutes:
-    // checked after auth so strangers can't burn someone's budget, recorded
-    // only on success so failed attempts don't lock the user out.
+    // The cooldown is set by a *release*, not a claim: it blocks re-registering
+    // a new name for 10 minutes after you let one go (anti-churn), while
+    // claiming itself is free and never locks you out of an immediate release.
+    // Checked after auth so strangers can't probe someone's budget.
     if app.cooldown_active("namechange", &auth_pubkey, NAME_CHANGE_COOLDOWN) {
         return (
             StatusCode::TOO_MANY_REQUESTS,
@@ -642,8 +644,10 @@ async fn register(
         // not acquired, report a conflict rather than a false success.
         Ok(0) => (StatusCode::CONFLICT, Json(json!({"error": "name taken"}))).into_response(),
         Ok(_) => {
+            // No record_op here: claiming a name must not start a cooldown,
+            // so a user can claim and then immediately release if they change
+            // their mind. Only release arms the cooldown.
             tracing::info!("registered {name} -> {pubkey}");
-            app.record_op("namechange", &pubkey);
             (
                 StatusCode::CREATED,
                 Json(json!({"name": name, "nip05": format!("{name}@{DOMAIN}")})),
@@ -843,13 +847,9 @@ async fn unregister(
         )
             .into_response();
     }
-    if app.cooldown_active("namechange", &auth_pubkey, NAME_CHANGE_COOLDOWN) {
-        return (
-            StatusCode::TOO_MANY_REQUESTS,
-            Json(json!({"error": "name_change_cooldown"})),
-        )
-            .into_response();
-    }
+    // Release is always allowed (no cooldown check): you can let a name go the
+    // instant after claiming it. Releasing is what *arms* the cooldown below,
+    // which then blocks re-registering a new name for NAME_CHANGE_COOLDOWN.
     match app.lookup(&name) {
         Some(owner) if owner == auth_pubkey => {
             let res = app.db.lock().execute(
