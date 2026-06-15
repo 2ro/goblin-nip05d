@@ -1,0 +1,39 @@
+// HTTP handlers, grouped by surface. The `routes()` builder wires them onto an
+// axum `Router` over the shared `App` state so both `main` and the integration
+// tests construct the identical app.
+
+pub mod avatar_http;
+pub mod misc;
+pub mod profile;
+pub mod registry;
+pub mod wellknown;
+
+use crate::avatar;
+use crate::db::App;
+use axum::{
+    extract::DefaultBodyLimit,
+    routing::{delete, get, post},
+    Router,
+};
+use std::sync::Arc;
+
+/// Build the full router over a shared [`App`].
+pub fn routes(app: Arc<App>) -> Router {
+    Router::new()
+        .route("/.well-known/nostr.json", get(wellknown::well_known))
+        .route("/api/v1/name/{name}", get(registry::availability))
+        .route("/api/v1/register", post(registry::register))
+        .route("/api/v1/register/{name}", delete(registry::unregister))
+        .route("/api/v1/transfer", post(registry::transfer))
+        .route("/api/v1/profile/{name}", get(profile::profile))
+        .route(
+            "/api/v1/avatar/{key}",
+            post(avatar_http::avatar_upload)
+                .delete(avatar_http::avatar_delete)
+                .get(avatar_http::avatar_get)
+                .layer(DefaultBodyLimit::max(avatar::MAX_RAW_BYTES)),
+        )
+        .route("/api/v1/health", get(misc::health))
+        .route("/", get(misc::landing))
+        .with_state(app)
+}

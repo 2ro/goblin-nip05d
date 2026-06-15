@@ -1,1 +1,6 @@
 /target
+
+# Local environment / config — never commit. Keep .env.example tracked.
+/.env
+/.env.*
+!/.env.example

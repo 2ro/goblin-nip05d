@@ -1,0 +1,9 @@
+target
+.git
+.github
+deploy
+scripts
+*.md
+.env
+.env.*
+!.env.example

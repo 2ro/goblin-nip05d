@@ -1,0 +1,37 @@
+# Caddy reverse proxy for the name authority + relay, with automatic HTTPS.
+#
+# Used by docker-compose.yml (upstreams are the compose service names
+# `nip05d` and `relay`). For a bare-metal Caddy install, replace those with
+# `127.0.0.1:8191` and `127.0.0.1:8080` and set the site address to your
+# domain literally.
+#
+# GOBLIN_DOMAIN is injected from the environment by compose.
+
+{$GOBLIN_DOMAIN} {
+	encode gzip
+
+	# SECURITY-CRITICAL: set X-Real-IP from the real client address. The name
+	# authority keys ALL of its per-IP rate limiting off this header; if the
+	# proxy does not set it, every request looks like one client and the
+	# limiter is defeated. Caddy's {remote_host} is the connecting peer.
+	header_up X-Real-IP {remote_host}
+
+	# NIP-05 resolution and the registration/avatar API go to the authority.
+	@authority {
+		path /.well-known/nostr.json /.well-known/nostr.json/* /api/* /
+	}
+	handle @authority {
+		reverse_proxy nip05d:8191 {
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	# Everything else — in particular WebSocket upgrades — is the relay.
+	# nostr-rs-relay speaks both the websocket relay protocol and the NIP-11
+	# relay-info document on the same port.
+	handle {
+		reverse_proxy relay:8080 {
+			header_up X-Real-IP {remote_host}
+		}
+	}
+}

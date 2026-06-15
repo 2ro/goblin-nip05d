@@ -1,0 +1,62 @@
+# A full, self-contained name authority + relay with automatic HTTPS.
+#
+#   docker compose up -d
+#
+# gives you:
+#   - goblin-nip05d  : the NIP-05 name authority (this repo)
+#   - relay          : scsibug/nostr-rs-relay, the relay you advertise
+#   - caddy          : auto-TLS reverse proxy terminating HTTPS for both
+#
+# Set GOBLIN_DOMAIN / GOBLIN_BASE_URL / GOBLIN_RELAYS in a `.env` file (copy
+# .env.example) to your own domain BEFORE bringing it up — Caddy obtains a
+# certificate for GOBLIN_DOMAIN, so DNS must already point at this host.
+
+services:
+  nip05d:
+    build: .
+    image: goblin-nip05d:latest
+    restart: unless-stopped
+    environment:
+      # Identity — override these in .env for your own deployment.
+      GOBLIN_DOMAIN: ${GOBLIN_DOMAIN:-goblin.st}
+      GOBLIN_BASE_URL: ${GOBLIN_BASE_URL:-https://goblin.st}
+      GOBLIN_RELAYS: ${GOBLIN_RELAYS:-wss://goblin.st}
+      # In-container paths (persisted on the named volume).
+      NIP05_BIND: 0.0.0.0:8191
+      NIP05_DB: /data/nip05.db
+      AVATAR_DIR: /data/avatars
+    volumes:
+      - nip05-data:/data
+    expose:
+      - "8191"
+
+  relay:
+    image: scsibug/nostr-rs-relay:latest
+    restart: unless-stopped
+    volumes:
+      - relay-data:/usr/src/app/db
+      - ./deploy/relay-config.toml:/usr/src/app/config.toml:ro
+    expose:
+      - "8080"
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - nip05d
+      - relay
+    environment:
+      GOBLIN_DOMAIN: ${GOBLIN_DOMAIN:-goblin.st}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  nip05-data:
+  relay-data:
+  caddy-data:
+  caddy-config:

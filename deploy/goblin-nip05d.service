@@ -1,0 +1,63 @@
+# Hardened systemd unit for goblin-nip05d on bare metal.
+#
+# Install:
+#   sudo install -m0755 target/release/goblin-nip05d /usr/local/bin/
+#   sudo install -m0640 .env /etc/goblin-nip05d.env       # see .env.example
+#   sudo install -m0644 deploy/goblin-nip05d.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now goblin-nip05d
+#
+# The service holds no secrets and stores only public data, but it is still
+# locked down: dynamic unprivileged user, read-only system, no new privileges.
+
+[Unit]
+Description=goblin-nip05d — self-hostable NIP-05 name authority
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+# DynamicUser allocates a throwaway unprivileged user at runtime. If you need
+# a stable owner for the data dir, comment this out and set `User=goblin`
+# (create the user first).
+DynamicUser=yes
+
+# Identity/config. Edit /etc/goblin-nip05d.env (copy of .env.example). Point
+# NIP05_DB and AVATAR_DIR under the StateDirectory below.
+EnvironmentFile=/etc/goblin-nip05d.env
+
+# Managed state at /var/lib/goblin-nip05d (created and chowned by systemd).
+StateDirectory=goblin-nip05d
+StateDirectoryMode=0750
+Environment=NIP05_DB=/var/lib/goblin-nip05d/nip05.db
+Environment=AVATAR_DIR=/var/lib/goblin-nip05d/avatars
+
+ExecStart=/usr/local/bin/goblin-nip05d
+Restart=on-failure
+RestartSec=2
+
+# --- hardening ---
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+# Only the state directory is writable.
+ReadWritePaths=/var/lib/goblin-nip05d
+# No raw sockets; only IP.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

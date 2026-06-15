@@ -65,9 +65,7 @@ pub fn process(raw: &[u8]) -> Result<Vec<u8>, &'static str> {
     reader.limits(limits);
 
     let mut decoder = reader.into_decoder().map_err(|_| "image rejected")?;
-    let orientation = decoder
-        .orientation()
-        .unwrap_or(Orientation::NoTransforms);
+    let orientation = decoder.orientation().unwrap_or(Orientation::NoTransforms);
     // DynamicImage::from_decoder takes the FIRST frame only — animated
     // WebP/APNG inputs lose everything past frame one.
     let mut img = DynamicImage::from_decoder(decoder).map_err(|_| "image rejected")?;
@@ -94,7 +92,7 @@ pub fn process(raw: &[u8]) -> Result<Vec<u8>, &'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use image::{ImageEncoder, RgbaImage};
+    use image::RgbaImage;
 
     fn png_bytes(w: u32, h: u32) -> Vec<u8> {
         let img = RgbaImage::from_fn(w, h, |x, y| {
