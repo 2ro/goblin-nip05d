@@ -38,6 +38,13 @@ services:
       - ./deploy/strfry/strfry.conf:/app/strfry.conf:ro
     expose:
       - "7777"
+    # Bound the relay's footprint so an unauthenticated subscription/ingest
+    # flood can't starve the authority or proxy on the same host.
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
 
   caddy:
     image: caddy:2

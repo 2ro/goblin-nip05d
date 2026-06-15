@@ -8,19 +8,20 @@
 # GOBLIN_DOMAIN is injected from the environment by compose.
 
 {$GOBLIN_DOMAIN} {
-	encode gzip
+	# SECURITY-CRITICAL (both upstreams): X-Real-IP is set from the real client
+	# address inside each reverse_proxy below. The name authority keys ALL of
+	# its per-IP rate limiting off this header; if the proxy does not set it,
+	# every request looks like one client and the limiter is defeated. Caddy's
+	# {remote_host} is the connecting peer, not a forwardable client header.
 
-	# SECURITY-CRITICAL: set X-Real-IP from the real client address. The name
-	# authority keys ALL of its per-IP rate limiting off this header; if the
-	# proxy does not set it, every request looks like one client and the
-	# limiter is defeated. Caddy's {remote_host} is the connecting peer.
-	header_up X-Real-IP {remote_host}
-
-	# NIP-05 resolution and the registration API go to the authority.
+	# NIP-05 resolution and the registration API go to the authority. gzip is
+	# scoped here (HTTP/JSON) and deliberately NOT applied to the relay path —
+	# strfry already negotiates permessage-deflate on the WebSocket.
 	@authority {
 		path /.well-known/nostr.json /.well-known/nostr.json/* /api/* /
 	}
 	handle @authority {
+		encode gzip
 		reverse_proxy nip05d:8191 {
 			header_up X-Real-IP {remote_host}
 		}

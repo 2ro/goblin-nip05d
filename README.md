@@ -81,7 +81,7 @@ edit). Defaults reproduce the original `goblin.st` deployment.
 |---|---|---|
 | `GOBLIN_DOMAIN` | `goblin.st` | bare host for names (the `@domain` part) |
 | `GOBLIN_BASE_URL` | `https://goblin.st` | public base URL — **load-bearing** (see warning) |
-| `GOBLIN_RELAYS` | `wss://nrelay.us-ea.st` | comma-separated relays advertised in NIP-05 |
+| `GOBLIN_RELAYS` | `wss://relay.goblin.st` | comma-separated relays advertised in NIP-05 |
 | `NIP05_BIND` | `127.0.0.1:8191` | listen address |
 | `NIP05_DB` | `/opt/goblin/nip05d/nip05.db` | SQLite path |
 | `GOBLIN_NAME_CHANGE_COOLDOWN_SECS` | `600` | re-register cooldown after a release |
