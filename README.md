@@ -105,8 +105,9 @@ the proxy set `X-Real-IP` (see the security model).
 
 ### 1. Docker Compose (recommended)
 
-Brings up the name authority, a `nostr-rs-relay`, and a Caddy reverse proxy with
-automatic HTTPS — a complete authority + relay in one command.
+Brings up the name authority, a `strfry` relay (built from source), and a Caddy
+reverse proxy with automatic HTTPS — a complete authority + relay in one command.
+The first build compiles strfry, so the initial `up` takes a few minutes.
 
 ```sh
 cp .env.example .env
@@ -116,8 +117,12 @@ cp .env.example .env
 docker compose up -d
 ```
 
-The relay config lives in `deploy/relay-config.toml` (kinds `0,3,5,1059,10002,10050`,
-64 KiB event cap). The Caddy config is `deploy/Caddyfile`.
+The relay is **strfry** (`deploy/strfry/`): `Dockerfile` builds it from a pinned
+source commit, `strfry.conf` tunes it (64 KiB event cap, NIP-40 expiry, NIP-77
+negentropy for community mirroring), and `strfry-writepolicy.py` restricts stored
+kinds to the wallet's set (`0,3,5,1059,10002,10050`) — everything else is rejected
+at ingest. NIP-42 auth is off, so the wallet publishes and reads without
+authenticating. The Caddy config is `deploy/Caddyfile`.
 
 ### 2. systemd + reverse proxy (bare metal)
 
@@ -139,8 +144,8 @@ and `/api/` to the authority, websocket to the relay). The systemd unit
 ```sh
 GOBLIN_DOMAIN=localhost GOBLIN_BASE_URL=https://localhost \
 NIP05_DB=/tmp/nip05.db NIP05_BIND=127.0.0.1:8085 cargo run
-# a local relay for wallet dev:
-docker run -d --name dev-relay -p 8088:8080 scsibug/nostr-rs-relay:latest
+# a local relay for wallet dev (builds + runs the bundled strfry):
+docker compose up -d relay   # exposed inside the compose network on :7777
 ```
 
 Note: `GOBLIN_BASE_URL` is what NIP-98 `u`-tags are checked against, so sign your

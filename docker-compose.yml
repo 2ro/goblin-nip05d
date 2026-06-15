@@ -4,7 +4,7 @@
 #
 # gives you:
 #   - goblin-nip05d  : the NIP-05 name authority (this repo)
-#   - relay          : scsibug/nostr-rs-relay, the relay you advertise
+#   - relay          : strfry (built from source), the relay you advertise
 #   - caddy          : auto-TLS reverse proxy terminating HTTPS for both
 #
 # Set GOBLIN_DOMAIN / GOBLIN_BASE_URL / GOBLIN_RELAYS in a `.env` file (copy
@@ -30,13 +30,14 @@ services:
       - "8191"
 
   relay:
-    image: scsibug/nostr-rs-relay:latest
+    build: ./deploy/strfry
+    image: goblin-strfry:latest
     restart: unless-stopped
     volumes:
-      - relay-data:/usr/src/app/db
-      - ./deploy/relay-config.toml:/usr/src/app/config.toml:ro
+      - relay-data:/strfry-db
+      - ./deploy/strfry/strfry.conf:/app/strfry.conf:ro
     expose:
-      - "8080"
+      - "7777"
 
   caddy:
     image: caddy:2

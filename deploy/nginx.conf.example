@@ -5,7 +5,7 @@
 #
 # Assumes:
 #   - goblin-nip05d listening on 127.0.0.1:8191 (NIP05_BIND)
-#   - nostr-rs-relay listening on 127.0.0.1:8080
+#   - strfry listening on 127.0.0.1:7777
 #   - certificates provisioned (e.g. by certbot) for your domain
 #
 # Replace names.example with your own GOBLIN_DOMAIN.
@@ -53,7 +53,7 @@ server {
 
     # The relay (websocket + NIP-11 info document) at the root.
     location / {
-        proxy_pass http://127.0.0.1:8080;
+        proxy_pass http://127.0.0.1:7777;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $connection_upgrade;
