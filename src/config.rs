@@ -23,14 +23,10 @@ pub struct Config {
     pub bind_addr: String,
     /// SQLite database path.
     pub db_path: String,
-    /// Directory holding processed avatar PNGs.
-    pub avatar_dir: String,
 
     /// After releasing a name, how long a pubkey must wait before claiming a
     /// new one (anti-churn brake).
     pub name_change_cooldown: Duration,
-    /// Avatar changes allowed per name per rolling 24h window.
-    pub avatar_changes_per_day: i64,
     /// Max age (seconds) of an accepted NIP-98 auth event.
     pub auth_max_age_secs: i64,
     /// Minimum/maximum name length in characters.
@@ -40,12 +36,14 @@ pub struct Config {
     /// Read endpoints: requests per IP per `read_window`.
     pub read_rate_max: usize,
     pub read_rate_window: Duration,
-    /// Write endpoints (register/transfer/unregister/avatar): per IP per
+    /// Write endpoints (register/transfer/unregister): per IP per
     /// `write_window`.
     pub write_rate_max: usize,
     pub write_rate_window: Duration,
 
-    /// Extra reserved names loaded from an optional file, one per line.
+    /// Additional reserved names: the operator's own domain labels (so the
+    /// brand a domain represents can't be impersonated) plus any names from
+    /// an optional `GOBLIN_RESERVED_FILE`. Extends the built-in generic list.
     pub extra_reserved: Vec<String>,
 }
 
@@ -74,14 +72,12 @@ impl Config {
             .collect::<Vec<_>>();
         let bind_addr = env_string("NIP05_BIND", "127.0.0.1:8191");
         let db_path = env_string("NIP05_DB", "/opt/goblin/nip05d/nip05.db");
-        let avatar_dir = env_string("AVATAR_DIR", "/opt/goblin/nip05d/avatars");
 
         let name_change_cooldown =
             Duration::from_secs(env_parse("GOBLIN_NAME_CHANGE_COOLDOWN_SECS", 600u64));
-        let avatar_changes_per_day = env_parse("GOBLIN_AVATARS_PER_DAY", 5i64);
         let auth_max_age_secs = env_parse("GOBLIN_AUTH_MAX_AGE_SECS", 60i64);
         let name_min = env_parse("GOBLIN_NAME_MIN", 3usize);
-        let name_max = env_parse("GOBLIN_NAME_MAX", 30usize);
+        let name_max = env_parse("GOBLIN_NAME_MAX", 20usize);
 
         let read_rate_max = env_parse("GOBLIN_READ_RATE_MAX", 120usize);
         let read_rate_window =
@@ -90,10 +86,16 @@ impl Config {
         let write_rate_window =
             Duration::from_secs(env_parse("GOBLIN_WRITE_RATE_WINDOW_SECS", 3600u64));
 
-        let extra_reserved = match std::env::var("GOBLIN_RESERVED_FILE") {
-            Ok(path) if !path.is_empty() => load_reserved_file(&path)?,
-            _ => Vec::new(),
-        };
+        // Reserve the operator's own domain labels (e.g. `goblin` for
+        // `goblin.st`, `acme` for `acme.example`) so the brand the domain
+        // stands for can't be claimed or look-alike-folded into. Then layer on
+        // any names from the optional reserved file.
+        let mut extra_reserved = crate::names::domain_reserved(&domain);
+        if let Ok(path) = std::env::var("GOBLIN_RESERVED_FILE") {
+            if !path.is_empty() {
+                extra_reserved.extend(load_reserved_file(&path)?);
+            }
+        }
 
         let cfg = Config {
             domain,
@@ -101,9 +103,7 @@ impl Config {
             relays,
             bind_addr,
             db_path,
-            avatar_dir,
             name_change_cooldown,
-            avatar_changes_per_day,
             auth_max_age_secs,
             name_min,
             name_max,
@@ -155,19 +155,17 @@ impl Config {
     /// the service holds none).
     pub fn summary(&self) -> String {
         format!(
-            "domain={} base_url={} relays={:?} bind={} db={} avatars={} \
-             name_len={}..={} cooldown={}s avatars/day={} auth_max_age={}s \
-             read={}req/{}s write={}req/{}s extra_reserved={}",
+            "domain={} base_url={} relays={:?} bind={} db={} \
+             name_len={}..={} cooldown={}s auth_max_age={}s \
+             read={}req/{}s write={}req/{}s reserved_extra={}",
             self.domain,
             self.base_url,
             self.relays,
             self.bind_addr,
             self.db_path,
-            self.avatar_dir,
             self.name_min,
             self.name_max,
             self.name_change_cooldown.as_secs(),
-            self.avatar_changes_per_day,
             self.auth_max_age_secs,
             self.read_rate_max,
             self.read_rate_window.as_secs(),
@@ -204,17 +202,16 @@ impl Config {
             relays: vec!["wss://nrelay.us-ea.st".into()],
             bind_addr: "127.0.0.1:0".into(),
             db_path: ":memory:".into(),
-            avatar_dir: String::new(),
             name_change_cooldown: Duration::from_secs(600),
-            avatar_changes_per_day: 5,
             auth_max_age_secs: 60,
             name_min: 3,
-            name_max: 30,
+            name_max: 20,
             read_rate_max: 100_000,
             read_rate_window: Duration::from_secs(60),
             write_rate_max: 100_000,
             write_rate_window: Duration::from_secs(3600),
-            extra_reserved: Vec::new(),
+            // Mirror from_env: the domain's own label is reserved.
+            extra_reserved: crate::names::domain_reserved("goblin.st"),
         }
     }
 }

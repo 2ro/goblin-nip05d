@@ -16,7 +16,7 @@
 	# limiter is defeated. Caddy's {remote_host} is the connecting peer.
 	header_up X-Real-IP {remote_host}
 
-	# NIP-05 resolution and the registration/avatar API go to the authority.
+	# NIP-05 resolution and the registration API go to the authority.
 	@authority {
 		path /.well-known/nostr.json /.well-known/nostr.json/* /api/* /
 	}

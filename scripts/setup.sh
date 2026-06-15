@@ -37,7 +37,7 @@ say "Installing binary to $BIN"
 $SUDO install -m0755 "$REPO_DIR/target/release/goblin-nip05d" "$BIN"
 
 say "Creating state directory $STATE_DIR"
-$SUDO mkdir -p "$STATE_DIR/avatars"
+$SUDO mkdir -p "$STATE_DIR"
 
 if [[ -f "$ENV_FILE" ]]; then
 	say "Env file $ENV_FILE already exists — leaving it untouched"

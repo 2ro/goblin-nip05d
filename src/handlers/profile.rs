@@ -12,8 +12,8 @@ use axum::{
 use serde_json::json;
 use std::sync::Arc;
 
-/// GET /api/v1/profile/{name} — public profile: pubkey + avatar hash. The
-/// client uses the hash as its cache key (responses are not cacheable).
+/// GET /api/v1/profile/{name} — public profile: the active pubkey for a name.
+/// Avatars are not served here; clients render them from the pubkey.
 pub async fn profile(
     State(app): State<Arc<App>>,
     Path(name): Path<String>,
@@ -31,18 +31,15 @@ pub async fn profile(
         return (StatusCode::NOT_FOUND, Json(json!({"error": "not found"}))).into_response();
     }
     match app.lookup(&name) {
-        Some(pubkey) => {
-            let avatar = app.avatar_hash(&name);
-            (
-                [
-                    (header::CONTENT_TYPE, "application/json"),
-                    (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"),
-                    (header::CACHE_CONTROL, "no-store"),
-                ],
-                json!({"name": name, "pubkey": pubkey, "avatar": avatar}).to_string(),
-            )
-                .into_response()
-        }
+        Some(pubkey) => (
+            [
+                (header::CONTENT_TYPE, "application/json"),
+                (header::ACCESS_CONTROL_ALLOW_ORIGIN, "*"),
+                (header::CACHE_CONTROL, "no-store"),
+            ],
+            json!({"name": name, "pubkey": pubkey}).to_string(),
+        )
+            .into_response(),
         None => (StatusCode::NOT_FOUND, Json(json!({"error": "not found"}))).into_response(),
     }
 }

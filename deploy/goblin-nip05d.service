@@ -22,14 +22,13 @@ Type=exec
 DynamicUser=yes
 
 # Identity/config. Edit /etc/goblin-nip05d.env (copy of .env.example). Point
-# NIP05_DB and AVATAR_DIR under the StateDirectory below.
+# NIP05_DB under the StateDirectory below.
 EnvironmentFile=/etc/goblin-nip05d.env
 
 # Managed state at /var/lib/goblin-nip05d (created and chowned by systemd).
 StateDirectory=goblin-nip05d
 StateDirectoryMode=0750
 Environment=NIP05_DB=/var/lib/goblin-nip05d/nip05.db
-Environment=AVATAR_DIR=/var/lib/goblin-nip05d/avatars
 
 ExecStart=/usr/local/bin/goblin-nip05d
 Restart=on-failure

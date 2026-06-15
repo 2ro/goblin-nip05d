@@ -1,14 +1,16 @@
 // Name and pubkey rules: validity, the reserved list, and look-alike folding
 // that stops digit/separator homographs of reserved terms.
 
-/// Built-in reserved names. Operators can extend this via a reserved file
+/// Built-in reserved names. These are generic infrastructure, role and
+/// finance terms that no operator should hand out as a payment identity —
+/// they are domain-agnostic on purpose. The operator's own brand is reserved
+/// separately and dynamically from their domain (see
+/// [`domain_reserved`]); operators can add more via a reserved file
 /// (see [`crate::config::Config::extra_reserved`]).
 pub const RESERVED: &[&str] = &[
     "admin",
     "administrator",
     "root",
-    "goblin",
-    "goblins",
     "support",
     "help",
     "info",
@@ -16,14 +18,11 @@ pub const RESERVED: &[&str] = &[
     "email",
     "www",
     "relay",
-    "nrelay",
     "nostr",
     "pay",
     "payment",
     "payments",
     "wallet",
-    "grin",
-    "mimblewimble",
     "official",
     "security",
     "abuse",
@@ -121,7 +120,8 @@ pub fn fold_lookalike(name: &str) -> String {
 }
 
 /// True when `name` is reserved outright or folds onto a reserved term. The
-/// `extra` slice holds operator-supplied reserved names from the config file.
+/// `extra` slice holds the operator's domain labels and any names from the
+/// optional reserved file (see [`crate::config::Config::extra_reserved`]).
 pub fn is_reserved(name: &str, extra: &[String]) -> bool {
     if RESERVED.contains(&name) || extra.iter().any(|r| r == name) {
         return true;
@@ -131,19 +131,29 @@ pub fn is_reserved(name: &str, extra: &[String]) -> bool {
         || extra.iter().any(|r| fold_lookalike(r) == folded)
 }
 
+/// Reserved names derived from the operator's own domain, so a domain's brand
+/// can't be claimed (or look-alike-folded) as a payment handle. Each dot label
+/// except the final TLD is reserved: `goblin.st` → `["goblin"]`,
+/// `names.acme.example` → `["names", "acme"]`. A single-label host (e.g.
+/// `localhost`) reserves that label. Lowercased; empty labels dropped.
+pub fn domain_reserved(domain: &str) -> Vec<String> {
+    let labels: Vec<&str> = domain
+        .trim()
+        .trim_end_matches('.')
+        .split('.')
+        .filter(|l| !l.is_empty())
+        .collect();
+    let keep = if labels.len() > 1 {
+        &labels[..labels.len() - 1]
+    } else {
+        &labels[..]
+    };
+    keep.iter().map(|l| l.to_lowercase()).collect()
+}
+
 pub fn valid_pubkey_hex(pk: &str) -> bool {
     pk.len() == 64
         && pk
-            .bytes()
-            .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
-}
-
-/// Strict avatar filename shape: 64 lowercase hex chars + ".png". Nothing
-/// else ever touches the filesystem (kills traversal by construction).
-pub fn valid_avatar_file(file: &str) -> bool {
-    file.len() == 68
-        && file.ends_with(".png")
-        && file[..64]
             .bytes()
             .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
 }
@@ -153,7 +163,7 @@ mod tests {
     use super::*;
 
     const MIN: usize = 3;
-    const MAX: usize = 30;
+    const MAX: usize = 20;
 
     #[test]
     fn name_validation() {
@@ -164,34 +174,38 @@ mod tests {
         assert!(!valid_name(".ada", MIN, MAX));
         assert!(!valid_name("ada.", MIN, MAX));
         assert!(!valid_name("a d a", MIN, MAX));
-        assert!(!valid_name(&"a".repeat(31), MIN, MAX));
-        assert!(valid_name(&"a".repeat(30), MIN, MAX));
+        assert!(!valid_name(&"a".repeat(21), MIN, MAX));
+        assert!(valid_name(&"a".repeat(20), MIN, MAX));
         assert!(!valid_name("päge", MIN, MAX));
     }
 
     #[test]
     fn reserved_and_lookalikes() {
-        assert!(is_reserved("goblin", &[]));
-        assert!(is_reserved("g0blin", &[]));
-        assert!(is_reserved("g-o-b-l-i-n", &[]));
+        // Generic infra/role terms are reserved out of the box, with folding.
+        assert!(is_reserved("support", &[]));
         assert!(is_reserved("supp0rt", &[]));
-        assert!(!is_reserved("goblinfan", &[]));
-        // Operator-supplied extras work both literally and folded.
+        assert!(is_reserved("adm1n", &[]));
+        // Brand terms are NOT built in — they come from the domain labels.
+        assert!(!is_reserved("goblin", &[]));
+        // Operator/domain-supplied extras work both literally and folded.
         assert!(is_reserved("acme", &["acme".to_string()]));
         assert!(is_reserved("acm3", &["acme".to_string()]));
+        assert!(!is_reserved("acmecorp", &["acme".to_string()]));
     }
 
     #[test]
-    fn avatar_file_validation() {
-        let good = format!("{}.png", "a1".repeat(32));
-        assert!(valid_avatar_file(&good));
-        assert!(!valid_avatar_file("../../etc/passwd"));
-        assert!(!valid_avatar_file("..%2f..%2fetc%2fpasswd"));
-        assert!(!valid_avatar_file(&format!("{}.png", "A1".repeat(32))));
-        assert!(!valid_avatar_file(&format!("{}.png", "a1".repeat(16))));
-        assert!(!valid_avatar_file(&format!("{}.jpg", "a1".repeat(32))));
-        assert!(!valid_avatar_file(&"a".repeat(68)));
-        assert!(!valid_avatar_file(""));
+    fn domain_labels_reserved() {
+        assert_eq!(domain_reserved("goblin.st"), vec!["goblin"]);
+        assert_eq!(domain_reserved("acme.example"), vec!["acme"]);
+        assert_eq!(domain_reserved("names.acme.example"), vec!["names", "acme"]);
+        assert_eq!(domain_reserved("GOBLIN.ST"), vec!["goblin"]);
+        assert_eq!(domain_reserved("localhost"), vec!["localhost"]);
+        // The brand and its look-alikes fall to is_reserved via these labels.
+        let extra = domain_reserved("goblin.st");
+        assert!(is_reserved("goblin", &extra));
+        assert!(is_reserved("g0blin", &extra));
+        assert!(is_reserved("g-o-b-l-i-n", &extra));
+        assert!(!is_reserved("goblinfan", &extra));
     }
 
     #[test]

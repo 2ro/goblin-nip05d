@@ -1,6 +1,6 @@
 // HTTP integration tests: drive the real router via `tower::ServiceExt::oneshot`
-// with signed NIP-98 auth events, covering the registration, transfer, release
-// and avatar flows including the auth/replay/cooldown edge cases.
+// with signed NIP-98 auth events, covering the registration, transfer and
+// release flows including the auth/replay/cooldown edge cases.
 
 use std::sync::Arc;
 
@@ -256,61 +256,6 @@ async fn transfer_happy_and_conflict() {
     let (sx2, json2) = send(app, xfer(&bob, "alice", &carol, "10.0.0.8")).await;
     assert_eq!(sx2, StatusCode::CONFLICT);
     assert_eq!(json2["error"], "new pubkey already has a name");
-}
-
-/// Build a tiny valid PNG body for avatar tests. `seed` varies the pixels so
-/// repeat uploads carry distinct bodies (and thus distinct NIP-98 auth events,
-/// avoiding a same-second replay collision in the test).
-fn png_bytes(seed: u8) -> Vec<u8> {
-    use image::codecs::png::PngEncoder;
-    use image::RgbaImage;
-    let img = RgbaImage::from_fn(64, 64, |x, y| image::Rgba([x as u8, y as u8, seed, 255]));
-    let mut out = Vec::new();
-    image::DynamicImage::ImageRgba8(img)
-        .write_with_encoder(PngEncoder::new(&mut out))
-        .unwrap();
-    out
-}
-
-#[tokio::test]
-async fn avatar_upload_ownership_and_daily_cap() {
-    // Avatars need a real directory; build the app with a temp dir.
-    let dir = tempfile::tempdir().unwrap();
-    let mut cfg = Config::for_test();
-    cfg.avatar_dir = dir.path().to_string_lossy().into_owned();
-    cfg.avatar_changes_per_day = 2;
-    let app = Arc::new(App::open(cfg));
-
-    let owner = Keys::generate();
-    let stranger = Keys::generate();
-    let (s1, _) = send(app.clone(), register_req(&owner, "alice")).await;
-    assert_eq!(s1, StatusCode::CREATED);
-
-    let upload = |k: &Keys, ip: &str, seed: u8| -> Request<Body> {
-        let body = png_bytes(seed);
-        let auth = nip98_header(k, "POST", "/api/v1/avatar/alice", &body, 0);
-        Request::builder()
-            .method("POST")
-            .uri("/api/v1/avatar/alice")
-            .header("authorization", auth)
-            .header("x-real-ip", ip)
-            .body(Body::from(body))
-            .unwrap()
-    };
-
-    // Stranger cannot set the owner's avatar.
-    let (ss, json) = send(app.clone(), upload(&stranger, "10.0.1.1", 1)).await;
-    assert_eq!(ss, StatusCode::FORBIDDEN);
-    assert_eq!(json["error"], "not the owner");
-
-    // Owner can (cap = 2): two succeed, the third is rate-limited.
-    let (a1, _) = send(app.clone(), upload(&owner, "10.0.1.2", 2)).await;
-    assert_eq!(a1, StatusCode::CREATED);
-    let (a2, _) = send(app.clone(), upload(&owner, "10.0.1.2", 3)).await;
-    assert_eq!(a2, StatusCode::CREATED);
-    let (a3, json3) = send(app, upload(&owner, "10.0.1.2", 4)).await;
-    assert_eq!(a3, StatusCode::TOO_MANY_REQUESTS);
-    assert_eq!(json3["error"], "avatar_rate_limited");
 }
 
 #[tokio::test]

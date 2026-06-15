@@ -2,7 +2,7 @@
 name = "goblin-nip05d"
 version = "0.1.0"
 edition = "2021"
-description = "Self-hostable NIP-05 name authority (name@domain -> nostr pubkey) with avatars"
+description = "Self-hostable NIP-05 name authority (name@domain -> nostr pubkey)"
 license = "Apache-2.0"
 
 [lib]
@@ -26,12 +26,10 @@ hex = "0.4"
 parking_lot = "0.12"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
-tempfile = "3"
 
 [profile.release]
 opt-level = 2

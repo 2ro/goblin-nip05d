@@ -1,7 +1,8 @@
 // goblin-nip05d — a self-hostable NIP-05 name authority.
 //
 // `name@yourdomain` → nostr pubkey, with NIP-98-authenticated self-service
-// registration and an avatar pipeline. The relay is a separate service; this
+// registration. Avatars are not stored here: clients render them
+// deterministically from the pubkey. The relay is a separate service; this
 // crate only advertises it in `/.well-known/nostr.json`.
 //
 // The crate is split so HTTP integration tests can build the same router the
@@ -9,7 +10,6 @@
 // `handlers::routes(app)`.
 
 pub mod auth;
-pub mod avatar;
 pub mod config;
 pub mod db;
 pub mod handlers;

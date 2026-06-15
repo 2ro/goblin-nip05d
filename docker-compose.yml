@@ -24,7 +24,6 @@ services:
       # In-container paths (persisted on the named volume).
       NIP05_BIND: 0.0.0.0:8191
       NIP05_DB: /data/nip05.db
-      AVATAR_DIR: /data/avatars
     volumes:
       - nip05-data:/data
     expose:

@@ -31,7 +31,7 @@ RUN apt-get update \
 
 # Non-root user; data lives under /data.
 RUN useradd --system --uid 10001 --home-dir /data --shell /usr/sbin/nologin goblin \
-    && mkdir -p /data/avatars \
+    && mkdir -p /data \
     && chown -R goblin:goblin /data
 
 COPY --from=builder /build/target/release/goblin-nip05d /usr/local/bin/goblin-nip05d
@@ -39,14 +39,13 @@ COPY --from=builder /build/target/release/goblin-nip05d /usr/local/bin/goblin-ni
 USER goblin
 WORKDIR /data
 
-# Persist the database and avatar files.
+# Persist the database.
 VOLUME ["/data"]
 
 # Defaults can be overridden at run time; bind on all interfaces inside the
 # container (the reverse proxy is the only thing in front of it).
 ENV NIP05_BIND=0.0.0.0:8191 \
-    NIP05_DB=/data/nip05.db \
-    AVATAR_DIR=/data/avatars
+    NIP05_DB=/data/nip05.db
 
 EXPOSE 8191
 

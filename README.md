@@ -1,11 +1,15 @@
 # goblin-nip05d
 
 A self-hostable **NIP-05 name authority**: it maps `name@yourdomain` to a nostr
-public key, with NIP-98-authenticated self-service registration and an avatar
-pipeline. Anyone can run their own instance to issue `name@yourdomain` identities —
-the Goblin wallet's `goblin.st` is just one operator. It pairs with a nostr
-relay (which the bundled Docker Compose file runs for you), but the relay is a
-separate service; this binary only *advertises* it in the NIP-05 response.
+public key, with NIP-98-authenticated self-service registration. Anyone can run
+their own instance to issue `name@yourdomain` identities — the Goblin wallet's
+`goblin.st` is just one operator. It pairs with a nostr relay (which the bundled
+Docker Compose file runs for you), but the relay is a separate service; this
+binary only *advertises* it in the NIP-05 response.
+
+It stores names and pubkeys only — **no avatars**. Clients render an identity
+picture deterministically from the pubkey, so there is nothing to upload, host,
+or moderate here.
 
 ## How it works
 
@@ -14,7 +18,7 @@ separate service; this binary only *advertises* it in the NIP-05 response.
   `https://yourdomain/.well-known/nostr.json?name=<name>`, which returns the
   pubkey and the relays to find that user on.
 - **NIP-98** ([spec](https://github.com/nostr-protocol/nips/blob/master/98.md)):
-  every write (register, release, transfer, avatar) is authorized by a signed
+  every write (register, release, transfer) is authorized by a signed
   nostr event in the `Authorization: Nostr <base64-event>` header. **Ownership
   is your nostr key** — whoever holds the secret key controls the name. There
   are no passwords and no accounts.
@@ -25,18 +29,20 @@ separate service; this binary only *advertises* it in the NIP-05 response.
   Control of the name is control of the key. There is no password reset and no
   operator override: **lose the key, lose the name.** The operator cannot
   recover or reassign it for you.
-- **Anti-squatting.** A built-in reserved list blocks sensitive handles
-  (`admin`, `support`, `wallet`, `relay`, …), and **look-alike folding** stops
-  digit/separator homographs: `g0blin`, `g-o-b-l-i-n` and `supp0rt` all fold
-  onto reserved terms and are rejected, while genuine names like `goblinfan`
-  stay free. Operators can extend the list via `GOBLIN_RESERVED_FILE`.
+- **Anti-squatting, tied to your domain.** A built-in reserved list blocks
+  generic sensitive handles (`admin`, `support`, `wallet`, `relay`, …), and the
+  operator's **own domain labels are reserved automatically** — `goblin.st`
+  reserves `goblin`, `acme.example` reserves `acme` — so nobody can claim the
+  brand the domain stands for. **Look-alike folding** stops digit/separator
+  homographs: `supp0rt`, `g0blin` and `g-o-b-l-i-n` all fold onto a reserved
+  term and are rejected, while genuine names like `goblinfan` stay free.
+  Operators can extend the list via `GOBLIN_RESERVED_FILE`.
 - **One active name per key.** Enforced at the database layer by a partial
   unique index, so the check-then-insert race app code alone can't close is
   closed for good.
-- **No PII, nothing private.** The service stores only public data: names,
-  pubkeys, and (re-encoded) avatar images. It holds **no secrets** — a host
-  compromise leaks only data that is already public, and cannot forge a
-  registration (that needs the user's key).
+- **No PII, nothing private.** The service stores only public data: names and
+  pubkeys. It holds **no secrets** — a host compromise leaks only data that is
+  already public, and cannot forge a registration (that needs the user's key).
 - **TLS is the operator's job, and the proxy MUST set `X-Real-IP`.** All per-IP
   rate limiting keys off the `X-Real-IP` header. If your reverse proxy does not
   set it from the real client address, every request looks like one client and
@@ -44,11 +50,6 @@ separate service; this binary only *advertises* it in the NIP-05 response.
 - **Replay protection resets on restart.** NIP-98 events are single-use within
   the freshness window, tracked in memory; a restart clears that set (and the
   release cooldown), which only re-opens a ≤60s window for already-signed events.
-- **Avatar hardening.** Uploads are sniffed by magic bytes (not Content-Type),
-  decoded under explicit limits (decompression-bomb guard), reduced to the first
-  frame, and re-encoded to a fresh 256×256 PNG — destroying every byte of input
-  metadata (EXIF/ICC/polyglot tails). Files are named by content hash, so a user
-  string never touches the filesystem (traversal-proof by construction).
 
 ## Endpoints
 
@@ -59,14 +60,11 @@ separate service; this binary only *advertises* it in the NIP-05 response.
 | POST | `/api/v1/register` `{name, pubkey}` | NIP-98 | register a name (one per pubkey) |
 | DELETE | `/api/v1/register/{name}` | NIP-98 (owner) | release a name |
 | POST | `/api/v1/transfer` `{name, new_pubkey}` | NIP-98 (owner) | re-point a name to a new key (for key rotation) |
-| GET | `/api/v1/profile/{name}` | — | public profile: `{name, pubkey, avatar}` |
-| POST | `/api/v1/avatar/{name}` | NIP-98 (owner) | set avatar (raw image body; PNG/JPEG/WebP) |
-| DELETE | `/api/v1/avatar/{name}` | NIP-98 (owner) | remove avatar |
-| GET | `/api/v1/avatar/{hash}.png` | — | serve a processed avatar (immutable, cacheable) |
+| GET | `/api/v1/profile/{name}` | — | public profile: `{name, pubkey}` |
 | GET | `/api/v1/health` | — | liveness (`ok`) |
 | GET | `/` | — | landing page |
 
-Rules: names match `^[a-z0-9._-]{3,30}$`, start/end alphanumeric, lowercase, with
+Rules: names match `^[a-z0-9._-]{3,20}$`, start/end alphanumeric, lowercase, with
 the reserved list enforced. A released name is immediately available for anyone
 to register — **releasing is permanent, not a hold.** Releasing a name arms a
 cooldown (default 10 min) that blocks *re-registering* a new name (anti-churn);
@@ -86,11 +84,9 @@ edit). Defaults reproduce the original `goblin.st` deployment.
 | `GOBLIN_RELAYS` | `wss://nrelay.us-ea.st` | comma-separated relays advertised in NIP-05 |
 | `NIP05_BIND` | `127.0.0.1:8191` | listen address |
 | `NIP05_DB` | `/opt/goblin/nip05d/nip05.db` | SQLite path |
-| `AVATAR_DIR` | `/opt/goblin/nip05d/avatars` | processed-avatar directory |
 | `GOBLIN_NAME_CHANGE_COOLDOWN_SECS` | `600` | re-register cooldown after a release |
-| `GOBLIN_AVATARS_PER_DAY` | `5` | avatar changes per name per rolling 24h |
 | `GOBLIN_AUTH_MAX_AGE_SECS` | `60` | max age of a NIP-98 auth event |
-| `GOBLIN_NAME_MIN` / `GOBLIN_NAME_MAX` | `3` / `30` | name length bounds (chars) |
+| `GOBLIN_NAME_MIN` / `GOBLIN_NAME_MAX` | `3` / `20` | name length bounds (chars) |
 | `GOBLIN_READ_RATE_MAX` / `GOBLIN_READ_RATE_WINDOW_SECS` | `120` / `60` | read rate limit per IP |
 | `GOBLIN_WRITE_RATE_MAX` / `GOBLIN_WRITE_RATE_WINDOW_SECS` | `10` / `3600` | write rate limit per IP |
 | `GOBLIN_RESERVED_FILE` | _(unset)_ | optional file of extra reserved names (one per line) |
@@ -172,7 +168,7 @@ cargo fmt --all -- --check
 ```
 
 The crate is a small module tree (`config`, `db`, `auth`, `ratelimit`, `names`,
-`handlers/`, plus the `avatar` image pipeline). Integration tests build the same
+`handlers/`). Integration tests build the same
 router the binary serves via `handlers::routes(App::open(...))` with an in-memory
 database, so the full HTTP surface is exercised with real signed NIP-98 events.
 

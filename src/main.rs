@@ -7,8 +7,7 @@
 //   POST   /api/v1/register                      {name, pubkey} + NIP-98 auth
 //   DELETE /api/v1/register/{name}               NIP-98 auth by owner
 //   POST   /api/v1/transfer                      re-point a name to a new key
-//   GET    /api/v1/profile/{name}                public profile (pubkey+avatar)
-//   POST/DELETE/GET /api/v1/avatar/{…}           avatar pipeline
+//   GET    /api/v1/profile/{name}                public profile (pubkey)
 //   GET    /api/v1/health                        liveness
 //   GET    /                                     landing page
 

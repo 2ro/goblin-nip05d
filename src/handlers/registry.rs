@@ -333,8 +333,6 @@ pub async fn transfer(
         )
             .into_response(),
         Ok(_) => {
-            // The picture belonged to the old key's owner; never inherit it.
-            app.purge_avatar(&name);
             tracing::info!("transferred {name}: {auth_pubkey} -> {new_pubkey}");
             (
                 StatusCode::OK,
@@ -412,7 +410,6 @@ pub async fn unregister(
             match res {
                 Ok(_) => {
                     app.record_op("namechange", &auth_pubkey);
-                    app.purge_avatar(&name);
                     tracing::info!("released {name}");
                     (
                         StatusCode::OK,
