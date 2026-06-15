@@ -2,7 +2,7 @@
 
 A self-hostable **NIP-05 name authority**: it maps `name@yourdomain` to a nostr
 public key, with NIP-98-authenticated self-service registration and an avatar
-pipeline. Anyone can run their own instance to issue `@yourdomain` identities —
+pipeline. Anyone can run their own instance to issue `name@yourdomain` identities —
 the Goblin wallet's `goblin.st` is just one operator. It pairs with a nostr
 relay (which the bundled Docker Compose file runs for you), but the relay is a
 separate service; this binary only *advertises* it in the NIP-05 response.
