@@ -275,3 +275,45 @@ async fn wellknown_resolves_registered_name() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(json["names"]["alice"], keys.public_key().to_hex());
 }
+
+#[tokio::test]
+async fn by_pubkey_reverse_lookup() {
+    let app = test_app();
+    let keys = Keys::generate();
+    let pk = keys.public_key().to_hex();
+    let (s1, _) = send(app.clone(), register_req(&keys, "alice")).await;
+    assert_eq!(s1, StatusCode::CREATED);
+
+    // Known key → its active name.
+    let req = Request::builder()
+        .method("GET")
+        .uri(format!("/api/v1/by-pubkey/{pk}"))
+        .header("x-real-ip", "10.0.3.1")
+        .body(Body::empty())
+        .unwrap();
+    let (status, json) = send(app.clone(), req).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(json["name"], "alice");
+    assert_eq!(json["pubkey"], pk);
+
+    // Unknown (but well-formed) key → 404.
+    let other = Keys::generate().public_key().to_hex();
+    let req = Request::builder()
+        .method("GET")
+        .uri(format!("/api/v1/by-pubkey/{other}"))
+        .header("x-real-ip", "10.0.3.2")
+        .body(Body::empty())
+        .unwrap();
+    let (status, _) = send(app.clone(), req).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // Malformed key → 404, not a 500.
+    let req = Request::builder()
+        .method("GET")
+        .uri("/api/v1/by-pubkey/not-a-key")
+        .header("x-real-ip", "10.0.3.3")
+        .body(Body::empty())
+        .unwrap();
+    let (status, _) = send(app, req).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
