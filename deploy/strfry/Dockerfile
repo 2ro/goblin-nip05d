@@ -1,8 +1,12 @@
-# Builds the Goblin relay: strfry (https://github.com/hoytech/strfry) compiled
-# from source at a pinned commit, plus python3 and the kind-allowlist write
-# policy. docker-compose builds this as the `relay` service.
+# Builds the Goblin relay: STOCK strfry (https://github.com/hoytech/strfry) —
+# cloned fresh at a pinned commit and compiled UNMODIFIED (no fork, no patches) —
+# plus python3 and the kind-allowlist write policy. The only Goblin-specific bits
+# are strfry.conf + strfry-writepolicy.py, layered on via strfry's own config and
+# plugin mechanisms. See README.md in this directory. docker-compose builds this
+# as the `relay` service.
 #
-# Pinned for reproducibility — bump STRFRY_REF to update strfry.
+# Pinned for reproducibility — bump STRFRY_REF to a newer upstream commit to
+# update strfry; nothing else changes, since the source is never touched.
 FROM alpine:3.18 AS build
 ENV TZ=Europe/London
 WORKDIR /build

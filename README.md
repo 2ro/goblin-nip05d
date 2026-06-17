@@ -105,9 +105,10 @@ the proxy set `X-Real-IP` (see the security model).
 
 ### 1. Docker Compose (recommended)
 
-Brings up the name authority, a `strfry` relay (built from source), and a Caddy
-reverse proxy with automatic HTTPS — a complete authority + relay in one command.
-The first build compiles strfry, so the initial `up` takes a few minutes.
+Brings up the name authority, a `strfry` relay (stock upstream, built unmodified
+from source), and a Caddy reverse proxy with automatic HTTPS — a complete
+authority + relay in one command. The first build compiles strfry, so the
+initial `up` takes a few minutes.
 
 ```sh
 cp .env.example .env
@@ -117,12 +118,19 @@ cp .env.example .env
 docker compose up -d
 ```
 
-The relay is **strfry** (`deploy/strfry/`): `Dockerfile` builds it from a pinned
-source commit, `strfry.conf` tunes it (64 KiB event cap, NIP-40 expiry, NIP-77
-negentropy for community mirroring), and `strfry-writepolicy.py` restricts stored
-kinds to the wallet's set (`0,3,5,1059,10002,10050`) — everything else is rejected
-at ingest. NIP-42 auth is off, so the wallet publishes and reads without
-authenticating. The Caddy config is `deploy/Caddyfile`.
+The relay is **stock [strfry](https://github.com/hoytech/strfry) — unmodified.**
+We don't fork it, patch its source, or vendor a copy: `deploy/strfry/Dockerfile`
+clones strfry fresh at a pinned commit and compiles it untouched. The only
+Goblin-specific pieces are two files added on top, using strfry's *own*
+extension points — `strfry.conf` (native config: 64 KiB event cap, NIP-40
+expiry, NIP-77 negentropy for community mirroring) and `strfry-writepolicy.py`
+(a write-policy plugin, strfry's documented plugin protocol) that restricts
+*stored* kinds to the wallet's set (`0,3,5,1059,10002,10050`) — everything else
+is rejected at ingest, while the read path stays 100% upstream. NIP-42 auth is
+off, so the wallet publishes and reads without authenticating. Full details and
+a no-Docker "fresh clone + apply the spec" path are in
+[`deploy/strfry/README.md`](deploy/strfry/README.md); the Caddy config is
+`deploy/Caddyfile`.
 
 ### 2. systemd + reverse proxy (bare metal)
 
