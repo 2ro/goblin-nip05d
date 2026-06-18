@@ -18,7 +18,7 @@ or moderate here.
   `https://yourdomain/.well-known/nostr.json?name=<name>`, which returns the
   pubkey and the relays to find that user on.
 - **NIP-98** ([spec](https://github.com/nostr-protocol/nips/blob/master/98.md)):
-  every write (register, release, transfer) is authorized by a signed
+  every write (register, release) is authorized by a signed
   nostr event in the `Authorization: Nostr <base64-event>` header. **Ownership
   is your nostr key** — whoever holds the secret key controls the name. There
   are no passwords and no accounts.
@@ -59,7 +59,6 @@ or moderate here.
 | GET | `/api/v1/name/{name}` | — | availability: `{name, available, reason?}` |
 | POST | `/api/v1/register` `{name, pubkey}` | NIP-98 | register a name (one per pubkey) |
 | DELETE | `/api/v1/register/{name}` | NIP-98 (owner) | release a name |
-| POST | `/api/v1/transfer` `{name, new_pubkey}` | NIP-98 (owner) | re-point a name to a new key (for key rotation) |
 | GET | `/api/v1/profile/{name}` | — | public profile: `{name, pubkey}` |
 | GET | `/api/v1/health` | — | liveness (`ok`) |
 | GET | `/` | — | landing page |

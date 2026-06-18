@@ -82,58 +82,6 @@ impl App {
 mod tests {
     use super::*;
 
-    /// The transfer UPDATE's invariants at the SQL layer: owner-guarded swap,
-    /// no-op on wrong owner, and the partial-unique pubkey index rejecting a
-    /// target key that already holds an active name.
-    #[test]
-    fn transfer_sql_invariants() {
-        let db = Connection::open_in_memory().expect("db");
-        db.execute_batch(SCHEMA).unwrap();
-        let (a, b, c) = ("aa".repeat(32), "bb".repeat(32), "cc".repeat(32));
-        db.execute(
-            "INSERT INTO names (name, pubkey, created_at) VALUES ('alice', ?1, 1)",
-            rusqlite::params![a],
-        )
-        .unwrap();
-
-        let xfer = "UPDATE names SET pubkey = ?3 \
-                    WHERE name = ?1 AND pubkey = ?2 AND released_at IS NULL";
-
-        // Wrong owner: guarded update touches nothing.
-        let n = db.execute(xfer, rusqlite::params!["alice", b, c]).unwrap();
-        assert_eq!(n, 0);
-
-        // Owner swap succeeds and the mapping moves.
-        let n = db.execute(xfer, rusqlite::params!["alice", a, b]).unwrap();
-        assert_eq!(n, 1);
-        let owner: String = db
-            .query_row("SELECT pubkey FROM names WHERE name='alice'", [], |r| {
-                r.get(0)
-            })
-            .unwrap();
-        assert_eq!(owner, b);
-
-        // Target already holding an active name is rejected by the index.
-        db.execute(
-            "INSERT INTO names (name, pubkey, created_at) VALUES ('carol', ?1, 1)",
-            rusqlite::params![c],
-        )
-        .unwrap();
-        let res = db.execute(xfer, rusqlite::params!["alice", b, c]);
-        match res {
-            Err(rusqlite::Error::SqliteFailure(e, _)) => {
-                assert_eq!(e.code, rusqlite::ErrorCode::ConstraintViolation)
-            }
-            other => panic!("expected constraint violation, got {:?}", other),
-        }
-        let owner: String = db
-            .query_row("SELECT pubkey FROM names WHERE name='alice'", [], |r| {
-                r.get(0)
-            })
-            .unwrap();
-        assert_eq!(owner, b);
-    }
-
     /// A released name is immediately revivable by a new key via the register
     /// upsert.
     #[test]

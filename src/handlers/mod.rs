@@ -21,7 +21,6 @@ pub fn routes(app: Arc<App>) -> Router {
         .route("/api/v1/name/{name}", get(registry::availability))
         .route("/api/v1/register", post(registry::register))
         .route("/api/v1/register/{name}", delete(registry::unregister))
-        .route("/api/v1/transfer", post(registry::transfer))
         .route("/api/v1/profile/{name}", get(profile::profile))
         .route("/api/v1/by-pubkey/{pubkey}", get(profile::by_pubkey))
         .route("/api/v1/health", get(misc::health))

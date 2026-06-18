@@ -36,8 +36,7 @@ pub struct Config {
     /// Read endpoints: requests per IP per `read_window`.
     pub read_rate_max: usize,
     pub read_rate_window: Duration,
-    /// Write endpoints (register/transfer/unregister): per IP per
-    /// `write_window`.
+    /// Write endpoints (register/unregister): per IP per `write_window`.
     pub write_rate_max: usize,
     pub write_rate_window: Duration,
 

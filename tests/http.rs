@@ -1,6 +1,6 @@
 // HTTP integration tests: drive the real router via `tower::ServiceExt::oneshot`
-// with signed NIP-98 auth events, covering the registration, transfer and
-// release flows including the auth/replay/cooldown edge cases.
+// with signed NIP-98 auth events, covering the registration and release flows
+// including the auth/replay/cooldown edge cases.
 
 use std::sync::Arc;
 
@@ -135,7 +135,7 @@ async fn register_u_tag_mismatch_rejected() {
         .to_string()
         .into_bytes();
     // Sign for the wrong path so the u-tag won't match.
-    let auth = nip98_header(&keys, "POST", "/api/v1/transfer", &body, 0);
+    let auth = nip98_header(&keys, "POST", "/api/v1/profile/alice", &body, 0);
     let req = Request::builder()
         .method("POST")
         .uri("/api/v1/register")
@@ -218,44 +218,6 @@ async fn release_arms_cooldown_blocking_reregister() {
     let (sreg, json) = send(app, register_req(&keys, "bob")).await;
     assert_eq!(sreg, StatusCode::TOO_MANY_REQUESTS);
     assert_eq!(json["error"], "name_change_cooldown");
-}
-
-#[tokio::test]
-async fn transfer_happy_and_conflict() {
-    let app = test_app();
-    let alice = Keys::generate();
-    let bob = Keys::generate();
-    let carol = Keys::generate();
-    let (s1, _) = send(app.clone(), register_req(&alice, "alice")).await;
-    assert_eq!(s1, StatusCode::CREATED);
-
-    // Happy: alice transfers "alice" to bob.
-    let xfer = |from: &Keys, name: &str, to: &Keys, ip: &str| -> Request<Body> {
-        let body = serde_json::json!({ "name": name, "new_pubkey": to.public_key().to_hex() })
-            .to_string()
-            .into_bytes();
-        let auth = nip98_header(from, "POST", "/api/v1/transfer", &body, 0);
-        Request::builder()
-            .method("POST")
-            .uri("/api/v1/transfer")
-            .header("authorization", auth)
-            .header("x-real-ip", ip)
-            .header("content-type", "application/json")
-            .body(Body::from(body))
-            .unwrap()
-    };
-    let (sx, json) = send(app.clone(), xfer(&alice, "alice", &bob, "10.0.0.7")).await;
-    assert_eq!(sx, StatusCode::OK);
-    assert_eq!(json["pubkey"], bob.public_key().to_hex());
-
-    // Give carol her own name so she "already has a name".
-    let (sc, _) = send(app.clone(), register_req(&carol, "carol")).await;
-    assert_eq!(sc, StatusCode::CREATED);
-
-    // Conflict: bob tries to transfer "alice" to carol, who is already taken.
-    let (sx2, json2) = send(app, xfer(&bob, "alice", &carol, "10.0.0.8")).await;
-    assert_eq!(sx2, StatusCode::CONFLICT);
-    assert_eq!(json2["error"], "new pubkey already has a name");
 }
 
 #[tokio::test]
