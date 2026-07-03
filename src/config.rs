@@ -64,7 +64,7 @@ impl Config {
     pub fn from_env() -> Result<Self, String> {
         let domain = env_string("GOBLIN_DOMAIN", "goblin.st");
         let base_url = env_string("GOBLIN_BASE_URL", "https://goblin.st");
-        let relays = env_string("GOBLIN_RELAYS", "wss://relay.goblin.st")
+        let relays = env_string("GOBLIN_RELAYS", "wss://relay.floonet.dev")
             .split(',')
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
@@ -198,7 +198,7 @@ impl Config {
         Config {
             domain: "goblin.st".into(),
             base_url: "https://goblin.st".into(),
-            relays: vec!["wss://relay.goblin.st".into()],
+            relays: vec!["wss://relay.floonet.dev".into()],
             bind_addr: "127.0.0.1:0".into(),
             db_path: ":memory:".into(),
             name_change_cooldown: Duration::from_secs(600),
