@@ -63,6 +63,31 @@ or moderate here.
 | GET | `/api/v1/health` | — | liveness (`ok`) |
 | GET | `/` | — | landing page |
 
+### Name transfers (optional, off by default)
+
+Mounted only when `GOBLIN_ALLOW_TRANSFERS` is set; otherwise these routes do not
+exist and requests 404.
+
+| Method | Path | Auth | Purpose |
+|---|---|---|---|
+| POST | `/api/v1/transfer/offer` `{offer}` | NIP-98 (seller) | lodge a signed kind-3402 sale offer |
+| GET | `/api/v1/transfer/offer/{id}` | public | read an offer + its status (CORS `*`) |
+| DELETE | `/api/v1/transfer/offer/{id}` | NIP-98 (seller) | revoke a live offer |
+| POST | `/api/v1/transfer/claim` `{offer_id, proof}` | NIP-98 (buyer) | claim the name with a Grin payment proof |
+
+A **name transfer** reassigns an active name from the seller's pubkey to the
+buyer's. It is **strictly non-custodial**: the buyer pays the seller directly,
+wallet to wallet in Grin, and the authority never holds funds. The seller lodges
+a signed offer (a kind-3402 event binding name, buyer pubkey, price, receiving
+address, and expiry); the buyer pays on chain and submits the six-field Grin
+payment proof; the authority verifies both signatures over the canonical 73-byte
+message, confirms the kernel on chain (`GOBLIN_TRANSFER_MIN_CONF` deep), checks
+the exact amount and receiving address, ensures the kernel excess was never used
+before, and then swaps one database row in a single atomic transaction. Keys
+never move - only the name's pubkey changes. Enabling this needs a reachable Grin
+node foreign API (`GOBLIN_GRIN_NODE_URL`). The full protocol is specified in the
+Goblin Name Transfer Protocol v1 spec.
+
 Rules: names match `^[a-z0-9._-]{3,20}$`, start/end alphanumeric, lowercase, with
 the reserved list enforced. A released name is immediately available for anyone
 to register — **releasing is permanent, not a hold.** Releasing a name arms a
@@ -89,6 +114,11 @@ edit). Defaults reproduce the original `goblin.st` deployment.
 | `GOBLIN_READ_RATE_MAX` / `GOBLIN_READ_RATE_WINDOW_SECS` | `120` / `60` | read rate limit per IP |
 | `GOBLIN_WRITE_RATE_MAX` / `GOBLIN_WRITE_RATE_WINDOW_SECS` | `10` / `3600` | write rate limit per IP |
 | `GOBLIN_RESERVED_FILE` | _(unset)_ | optional file of extra reserved names (one per line) |
+| `GOBLIN_ALLOW_TRANSFERS` | `false` | enable the name-transfer routes (off = they 404) |
+| `GOBLIN_GRIN_NODE_URL` | _(unset)_ | Grin node foreign API(s) for payment confirmation (**required** when transfers are on) |
+| `GOBLIN_TRANSFER_MIN_CONF` | `10` | confirmations a payment kernel needs before a claim |
+| `GOBLIN_TRANSFER_MAX_OFFER_TTL` | `2592000` | longest offer time-to-live in seconds (30 days) |
+| `GOBLIN_TRANSFER_CLAIM_GRACE` | `86400` | grace window in seconds for a claim after an offer dies (1 day) |
 
 > **⚠️ `GOBLIN_BASE_URL` and `GOBLIN_DOMAIN` must match the public host clients
 > actually reach.** NIP-98 verification rebuilds the expected `u`-tag from

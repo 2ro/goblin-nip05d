@@ -5,6 +5,7 @@
 pub mod misc;
 pub mod profile;
 pub mod registry;
+pub mod transfer;
 pub mod wellknown;
 
 use crate::db::App;
@@ -14,9 +15,11 @@ use axum::{
 };
 use std::sync::Arc;
 
-/// Build the full router over a shared [`App`].
+/// Build the full router over a shared [`App`]. The name-transfer routes are
+/// mounted only when `GOBLIN_ALLOW_TRANSFERS` is set; otherwise they do not
+/// exist and requests to them 404.
 pub fn routes(app: Arc<App>) -> Router {
-    Router::new()
+    let mut router = Router::new()
         .route("/.well-known/nostr.json", get(wellknown::well_known))
         .route("/api/v1/name/{name}", get(registry::availability))
         .route("/api/v1/register", post(registry::register))
@@ -24,6 +27,17 @@ pub fn routes(app: Arc<App>) -> Router {
         .route("/api/v1/profile/{name}", get(profile::profile))
         .route("/api/v1/by-pubkey/{pubkey}", get(profile::by_pubkey))
         .route("/api/v1/health", get(misc::health))
-        .route("/", get(misc::landing))
-        .with_state(app)
+        .route("/", get(misc::landing));
+
+    if app.cfg.allow_transfers {
+        router = router
+            .route("/api/v1/transfer/offer", post(transfer::lodge_offer))
+            .route(
+                "/api/v1/transfer/offer/{offer_id}",
+                get(transfer::read_offer).delete(transfer::revoke_offer),
+            )
+            .route("/api/v1/transfer/claim", post(transfer::claim));
+    }
+
+    router.with_state(app)
 }

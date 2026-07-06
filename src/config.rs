@@ -44,6 +44,32 @@ pub struct Config {
     /// brand a domain represents can't be impersonated) plus any names from
     /// an optional `GOBLIN_RESERVED_FILE`. Extends the built-in generic list.
     pub extra_reserved: Vec<String>,
+
+    /// Name-transfer (offer/claim marketplace) support. Default OFF: when
+    /// false the transfer routes are not mounted at all (requests 404).
+    pub allow_transfers: bool,
+    /// Grin node foreign-API base URL(s), comma-separated. Required when
+    /// `allow_transfers` is set (used for `get_kernel`/`get_tip`); validated
+    /// fail-fast at startup.
+    pub grin_node_url: Option<String>,
+    /// Confirmations a payment kernel needs before a claim is accepted.
+    pub transfer_min_conf: u64,
+    /// Longest offer time-to-live (seconds): an offer's `expiration` must be
+    /// within `[now, now + transfer_max_offer_ttl]` at lodging.
+    pub transfer_max_offer_ttl: i64,
+    /// Grace window (seconds) after an offer is revoked or expires during which
+    /// a claim that settled before the offer died is still honored.
+    pub transfer_claim_grace: i64,
+}
+
+fn env_bool(key: &str, default: bool) -> bool {
+    match std::env::var(key) {
+        Ok(v) => matches!(
+            v.trim().to_lowercase().as_str(),
+            "1" | "true" | "yes" | "on"
+        ),
+        Err(_) => default,
+    }
 }
 
 fn env_string(key: &str, default: &str) -> String {
@@ -96,6 +122,15 @@ impl Config {
             }
         }
 
+        let allow_transfers = env_bool("GOBLIN_ALLOW_TRANSFERS", false);
+        let grin_node_url = std::env::var("GOBLIN_GRIN_NODE_URL")
+            .ok()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        let transfer_min_conf = env_parse("GOBLIN_TRANSFER_MIN_CONF", 10u64);
+        let transfer_max_offer_ttl = env_parse("GOBLIN_TRANSFER_MAX_OFFER_TTL", 2_592_000i64);
+        let transfer_claim_grace = env_parse("GOBLIN_TRANSFER_CLAIM_GRACE", 86_400i64);
+
         let cfg = Config {
             domain,
             base_url,
@@ -111,6 +146,11 @@ impl Config {
             write_rate_max,
             write_rate_window,
             extra_reserved,
+            allow_transfers,
+            grin_node_url,
+            transfer_min_conf,
+            transfer_max_offer_ttl,
+            transfer_claim_grace,
         };
         cfg.validate()?;
         Ok(cfg)
@@ -147,7 +187,28 @@ impl Config {
                 self.name_min, self.name_max
             ));
         }
+        // Transfers need a Grin node to confirm payment kernels; refuse to
+        // start half-configured rather than fail every claim at runtime.
+        if self.allow_transfers && self.grin_node_url.is_none() {
+            return Err(
+                "GOBLIN_ALLOW_TRANSFERS is set but GOBLIN_GRIN_NODE_URL is empty \
+                 (a Grin node foreign API is required to confirm payment kernels)"
+                    .into(),
+            );
+        }
         Ok(())
+    }
+
+    /// Parse `grin_node_url` into a list of foreign-API endpoints (comma or
+    /// whitespace separated). Empty when transfers are off.
+    pub fn grin_node_endpoints(&self) -> Vec<String> {
+        self.grin_node_url
+            .as_deref()
+            .unwrap_or("")
+            .split([',', ' ', '\t', '\n'])
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect()
     }
 
     /// One-line summary for the startup log (no secrets are involved here —
@@ -156,7 +217,8 @@ impl Config {
         format!(
             "domain={} base_url={} relays={:?} bind={} db={} \
              name_len={}..={} cooldown={}s auth_max_age={}s \
-             read={}req/{}s write={}req/{}s reserved_extra={}",
+             read={}req/{}s write={}req/{}s reserved_extra={} \
+             transfers={}",
             self.domain,
             self.base_url,
             self.relays,
@@ -171,6 +233,17 @@ impl Config {
             self.write_rate_max,
             self.write_rate_window.as_secs(),
             self.extra_reserved.len(),
+            if self.allow_transfers {
+                format!(
+                    "on(node={} min_conf={} max_ttl={}s grace={}s)",
+                    self.grin_node_url.as_deref().unwrap_or("-"),
+                    self.transfer_min_conf,
+                    self.transfer_max_offer_ttl,
+                    self.transfer_claim_grace,
+                )
+            } else {
+                "off".to_string()
+            },
         )
     }
 }
@@ -211,6 +284,13 @@ impl Config {
             write_rate_window: Duration::from_secs(3600),
             // Mirror from_env: the domain's own label is reserved.
             extra_reserved: crate::names::domain_reserved("goblin.st"),
+            // Transfers off by default in tests; the transfer suite flips these
+            // on and injects a test chain source.
+            allow_transfers: false,
+            grin_node_url: None,
+            transfer_min_conf: 10,
+            transfer_max_offer_ttl: 2_592_000,
+            transfer_claim_grace: 86_400,
         }
     }
 }
@@ -251,5 +331,20 @@ mod tests {
         c.name_min = 10;
         c.name_max = 5;
         assert!(c.validate().is_err());
+    }
+
+    #[test]
+    fn transfers_on_without_node_url_fails_fast() {
+        let mut c = base();
+        c.allow_transfers = true;
+        c.grin_node_url = None;
+        assert!(c.validate().is_err());
+        // With a node URL it validates.
+        c.grin_node_url = Some("https://node.example/v2/foreign".into());
+        assert!(c.validate().is_ok());
+        assert_eq!(
+            c.grin_node_endpoints(),
+            vec!["https://node.example/v2/foreign".to_string()]
+        );
     }
 }

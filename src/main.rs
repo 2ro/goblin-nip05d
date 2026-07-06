@@ -9,6 +9,10 @@
 //   GET    /api/v1/profile/{name}                public profile (pubkey)
 //   GET    /api/v1/health                        liveness
 //   GET    /                                     landing page
+//
+// When GOBLIN_ALLOW_TRANSFERS is set, the name-transfer routes are also mounted
+// (else they 404): POST/GET/DELETE /api/v1/transfer/offer[/{id}] and
+// POST /api/v1/transfer/claim. See the README and the transfer spec.
 
 use goblin_nip05d::{handlers, App, Config};
 use std::sync::Arc;

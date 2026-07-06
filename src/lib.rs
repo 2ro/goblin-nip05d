@@ -14,6 +14,8 @@ pub mod config;
 pub mod db;
 pub mod handlers;
 pub mod names;
+pub mod node;
+pub mod proof;
 pub mod ratelimit;
 pub mod util;
 
