@@ -7,6 +7,21 @@ their own instance to issue `name@yourdomain` identities — the Goblin wallet's
 Docker Compose file runs for you), but the relay is a separate service; this
 binary only *advertises* it in the NIP-05 response.
 
+> **Status: minimal standalone edition, essentially deprecated.** This is the
+> original single-purpose name authority. It still builds, runs, and does exactly
+> what the rest of this README describes, so it stays here as a reference and for
+> anyone who wants the name service on its own. New deployments should prefer the
+> **Floonet relay package**, which BUNDLES this same name service and lets you run
+> it three ways, chosen in the relay's setup: alongside the relay (the default),
+> as a standalone service, or not at all (a relay with no name service). The
+> bundled edition is where the name authority now gets its ongoing work (paid
+> names, name transfers, co-location on the relay's own domain), so reach for this
+> standalone repo only if you specifically want the name service with no relay. See
+> [floonet-strfry](https://code.gri.mw/GRIN/floonet-strfry) (a stock strfry relay
+> with the authority bundled) or [floonet-rs](https://code.gri.mw/GRIN/floonet-rs)
+> (the Rust relay with the authority built in), and the Floonet relay docs at
+> [docs.floonet.dev](https://docs.floonet.dev).
+
 It stores names and pubkeys only — **no avatars**. Clients render an identity
 picture deterministically from the pubkey, so there is nothing to upload, host,
 or moderate here.
