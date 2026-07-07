@@ -179,10 +179,14 @@ a no-Docker "fresh clone + apply the spec" path are in
 ### 2. systemd + reverse proxy (bare metal)
 
 ```sh
-./scripts/setup.sh         # builds, installs binary + hardened unit + env file
-sudo nano /etc/goblin-nip05d.env   # set your domain
-sudo systemctl restart goblin-nip05d
+./scripts/setup.sh         # guided: builds, installs, asks your domain, writes env
+sudo systemctl start goblin-nip05d
 ```
+
+`setup.sh` leads with a pointer to the bundled Floonet edition (the preferred
+route), then, if you continue, asks for your domain and writes a ready
+`/etc/goblin-nip05d.env` for you — no hand-editing. It re-runs safely and never
+overwrites an existing env file.
 
 Then put a TLS-terminating proxy in front — see `deploy/Caddyfile` or
 `deploy/nginx.conf.example` (both set `X-Real-IP` and route `/.well-known/...`
